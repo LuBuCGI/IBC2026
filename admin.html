@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#26164E">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="CGI Admin">
+<link rel="manifest" href="admin.webmanifest">
+<link rel="apple-touch-icon" href="assets/admin-icon-180.png">
+<title>CGI IBC2026 Admin</title>
+<style>
+:root{--dark:#26164e;--purple:#5236ab;--red:#e31937;--text:#1f2937}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%;font-family:Inter,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;background:radial-gradient(circle at top left,rgba(227,25,55,.10),transparent 34%),linear-gradient(180deg,#fff,#f5f3ff);color:var(--text)}
+body{min-height:100dvh;display:grid;place-items:center;padding:24px}
+.card{width:min(560px,100%);background:rgba(255,255,255,.96);border:1px solid #e5e7eb;border-radius:28px;box-shadow:0 22px 55px rgba(17,24,39,.12);padding:30px}
+.logo{width:150px;max-width:45%;display:block;margin-bottom:24px}
+.eyebrow{font-weight:800;color:var(--red);font-size:.88rem;text-transform:uppercase;letter-spacing:.08em}
+h1{font-size:clamp(2rem,6vw,3.1rem);line-height:1;margin:10px 0 12px;color:var(--dark)}
+p{line-height:1.5;color:#4b5563}
+label{display:block;font-weight:750;margin:22px 0 8px}
+input{width:100%;font-size:18px;padding:15px 16px;border:1.5px solid #d1d5db;border-radius:14px;outline:none}
+input:focus{border-color:var(--purple);box-shadow:0 0 0 4px rgba(82,54,171,.10)}
+button{width:100%;margin-top:14px;border:0;border-radius:14px;padding:15px 18px;font-size:1rem;font-weight:800;color:#fff;background:linear-gradient(90deg,var(--red),var(--purple));cursor:pointer}
+.error{display:none;margin-top:12px;padding:11px 13px;border-radius:12px;background:#fff1f2;color:#b42318;font-weight:700}
+.error.show{display:block}
+.small{font-size:.88rem;margin-top:18px}
+</style>
+</head>
+<body>
+<main class="card">
+<img class="logo" src="assets/logo50.png" alt="CGI">
+<div class="eyebrow">IBC2026 Quiz Platform</div>
+<h1>Admin</h1>
+<p>Passwort eingeben, um Analytics und Exportfunktionen zu öffnen.</p>
+<form id="loginForm">
+<label for="password">Passwort</label>
+<input id="password" type="password" inputmode="numeric" autocomplete="off" required autofocus>
+<button type="submit">Admin-Modus öffnen</button>
+<div class="error" id="error">Passwort nicht korrekt.</div>
+</form>
+<p class="small">Die Adminansicht verwendet weiterhin die lokal auf diesem iPad gespeicherten Quizdaten.</p>
+</main>
+<script>
+const EXPECTED = "122333";
+document.getElementById("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const value = document.getElementById("password").value;
+  if (value === EXPECTED) {
+    sessionStorage.setItem("cgiAdminAuthenticated","1");
+    window.location.href = "de.html?admin=1&fromAdminApp=1";
+  } else {
+    document.getElementById("error").classList.add("show");
+    document.getElementById("password").select();
+  }
+});
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js', { updateViaCache: 'none' }).then(reg => reg.update()).catch(console.error));
+}
+</script>
+</body>
+</html>
