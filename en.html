@@ -1791,6 +1791,16 @@ body{min-height:var(--app-vh)}
 
 /* Release cleanup: no separate answer-check control */
 body.quiz-mode .controls{display:none!important}
+
+/* v1.6.1: keep the animated CGI logo inside its own column on wide iPads */
+#contentCard .left-col{z-index:2}
+#contentCard .logo-area{z-index:1;min-width:0;overflow:hidden}
+#contentCard .logo-stage{max-width:100%;min-width:0}
+@media (min-width:1181px){
+  #contentCard .logo-stage img{height:clamp(190px,16vw,260px)}
+  #contentCard .logo-stage .slot{min-height:clamp(225px,19vw,300px)}
+  #contentCard .logo-area{min-height:clamp(245px,21vw,320px);padding-top:10px}
+}
 </style>
 
 <link rel="manifest" href="manifest.webmanifest">
@@ -2900,7 +2910,7 @@ function closeTopicModalFn()
       }
     }
 
-    const CORRECT_FEEDBACK_MS = 2800;
+    const CORRECT_FEEDBACK_MS = 1500;
 
     function checkAnswer() {
       const q = currentQuestion();
@@ -3058,7 +3068,7 @@ function closeTopicModalFn()
         const href = link.getAttribute('href');
         const title = (link.id === 'aiPdfLink' && document.getElementById('aiModalTitle')) ? document.getElementById('aiModalTitle').textContent : link.textContent.trim();
         if (link.id === 'aiPdfLink') closeTopicModalFn();
-        openPdfViewer(href, title);
+        window.openPdfViewer(href, title);
       });
     });
     if (pdfViewerClose) pdfViewerClose.addEventListener('click', closePdfViewer);
