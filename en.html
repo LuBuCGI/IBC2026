@@ -2325,8 +2325,18 @@ const TOPIC_RESOURCES = {
     }
 
     function saveLeads() {
-      localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads));
-      updateLeadUi();
+      try {
+        const payload = JSON.stringify(leads);
+        localStorage.setItem(LEADS_STORAGE_KEY, payload);
+        const verified = localStorage.getItem(LEADS_STORAGE_KEY);
+        if (verified !== payload) throw new Error('Storage verification failed');
+        updateLeadUi();
+        return true;
+      } catch (error) {
+        console.error('Teilnehmerdaten konnten nicht gespeichert werden:', error);
+        updateLeadUi();
+        return false;
+      }
     }
 
     function loadAnalytics() {
@@ -2464,6 +2474,8 @@ const TOPIC_RESOURCES = {
       if (!statLeads || !tableBody) return;
 
       statLeads.textContent = leads.length;
+      const storageHealth = document.getElementById('storageHealth');
+      if (storageHealth) storageHealth.textContent = `Stored locally on this iPad: ${leads.length} entr${leads.length === 1 ? 'y' : 'ies'}.`
       statStarts.textContent = analytics.startsTotal || 0;
       statCompletions.textContent = analytics.completionsTotal || 0;
       statPdfAi.textContent = Object.values(analytics.pdfViews || {}).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -2546,8 +2558,15 @@ const TOPIC_RESOURCES = {
         wrongAnswers: currentSession.wrongAnswers || 0
       };
       leads.push(entry);
-      saveLeads();
-      setSubmitMessage('Entry saved successfully. Thank you!', 'success');
+      const saved = saveLeads();
+      if (!saved) {
+        leads.pop();
+        setSubmitMessage('Saving failed. Please keep this form open and contact the booth team.', 'error');
+        return;
+      }
+      // Read back from persistent storage before showing the success screen.
+      leads = loadLeads();
+      setSubmitMessage(`Entry saved successfully. Entries stored locally on this iPad: ${leads.length}.`, 'success');
       leadForm.reset();
       submissionComplete = true;
       showSuccessView();

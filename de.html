@@ -1997,6 +1997,7 @@ body.quiz-mode .controls{display:none!important}
 
       <div class="analytics-section">
         <h4>Gespeicherte Teilnahmen</h4>
+        <p class="storage-health" id="storageHealth">Lokaler Speicher wird geprüft …</p>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
@@ -2365,8 +2366,18 @@ const TOPIC_RESOURCES = {
     }
 
     function saveLeads() {
-      localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads));
-      updateLeadUi();
+      try {
+        const payload = JSON.stringify(leads);
+        localStorage.setItem(LEADS_STORAGE_KEY, payload);
+        const verified = localStorage.getItem(LEADS_STORAGE_KEY);
+        if (verified !== payload) throw new Error('Storage verification failed');
+        updateLeadUi();
+        return true;
+      } catch (error) {
+        console.error('Teilnehmerdaten konnten nicht gespeichert werden:', error);
+        updateLeadUi();
+        return false;
+      }
     }
 
     function loadAnalytics() {
@@ -2504,6 +2515,8 @@ const TOPIC_RESOURCES = {
       if (!statLeads || !tableBody) return;
 
       statLeads.textContent = leads.length;
+      const storageHealth = document.getElementById('storageHealth');
+      if (storageHealth) storageHealth.textContent = `Auf diesem iPad lokal gespeichert: ${leads.length} Teilnahme${leads.length === 1 ? '' : 'n'}.`
       statStarts.textContent = analytics.startsTotal || 0;
       statCompletions.textContent = analytics.completionsTotal || 0;
       statPdfAi.textContent = Object.values(analytics.pdfViews || {}).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -2586,8 +2599,15 @@ const TOPIC_RESOURCES = {
         wrongAnswers: currentSession.wrongAnswers || 0
       };
       leads.push(entry);
-      saveLeads();
-      setSubmitMessage('Teilnahme erfolgreich gespeichert. Vielen Dank!', 'success');
+      const saved = saveLeads();
+      if (!saved) {
+        leads.pop();
+        setSubmitMessage('Speichern fehlgeschlagen. Bitte das Formular nicht schließen und das Standpersonal informieren.', 'error');
+        return;
+      }
+      // Read back from persistent storage before showing the success screen.
+      leads = loadLeads();
+      setSubmitMessage(`Teilnahme erfolgreich gespeichert. Lokal gespeicherte Teilnahmen auf diesem iPad: ${leads.length}.`, 'success');
       leadForm.reset();
       submissionComplete = true;
       showSuccessView();
