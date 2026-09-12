@@ -34,7 +34,7 @@ button{width:100%;margin-top:14px;border:0;border-radius:14px;padding:15px 18px;
 <img class="logo" src="assets/logo50.png" alt="CGI">
 <div class="eyebrow">IBC2026 Quiz Platform</div>
 <h1>Admin</h1>
-<p>Passwort eingeben, um Analytics und Exportfunktionen zu öffnen.</p>
+<p><strong>Wichtig auf dem iPad:</strong> Teilnehmerdaten werden in der Quiz-App lokal gespeichert. Öffne für Analytics und Export die normale Quiz-App und tippe dort fünfmal schnell auf das CGI-Logo.</p>
 <form id="loginForm">
 <label for="password">Passwort</label>
 <input id="password" type="password" inputmode="numeric" autocomplete="off" required autofocus>
@@ -49,8 +49,7 @@ document.getElementById("loginForm").addEventListener("submit", (e) => {
   e.preventDefault();
   const value = document.getElementById("password").value;
   if (value === EXPECTED) {
-    sessionStorage.setItem("cgiAdminAuthenticated","1");
-    window.location.href = "de.html?admin=1&fromAdminApp=1";
+    document.getElementById("loginForm").innerHTML = `<div style="padding:14px;border-radius:14px;background:#f5f3ff;line-height:1.5"><strong>Adminzugang freigegeben.</strong><br><br>Bitte jetzt die normale CGI Quiz-App öffnen und dort <strong>5× schnell auf das CGI-Logo</strong> tippen. Danach das Passwort <strong>122333</strong> eingeben. Nur so greift der Adminbereich auf dieselben lokal gespeicherten Teilnehmerdaten zu.</div>`;
   } else {
     document.getElementById("error").classList.add("show");
     document.getElementById("password").select();

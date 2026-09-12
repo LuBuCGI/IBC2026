@@ -1997,6 +1997,7 @@ body.quiz-mode .controls{display:none!important}
 
       <div class="analytics-section">
         <h4>Gespeicherte Teilnahmen</h4>
+        <p class="storage-health" id="storageHealth">Lokaler Speicher wird geprüft …</p>
         <div class="admin-table-wrap">
           <table class="admin-table">
             <thead>
@@ -2203,122 +2204,113 @@ const TOPIC_RESOURCES = {
     const adminClearLeads = document.getElementById("adminClearLeads");
     const adminResetStats = document.getElementById("adminResetStats");
 
-
     const LEADS_STORAGE_KEY = "cgi-ibc-quiz-leads-v1";
-    const LEADS_DB_NAME = "cgi-ibc-quiz-db-v1";
-    const LEADS_DB_STORE = "leads";
     const NEWSLETTER_STORAGE_KEY = "cgi-ibc-newsletter-interest-v1";
     const ANALYTICS_STORAGE_KEY = "cgi-ibc-quiz-analytics-v1";
 
     let leads = loadLeads();
     let analytics = loadAnalytics();
-    let storageBackend = 'localStorage';
+    let currentSession = createSession();
 
-    function openLeadDb() {
-      return new Promise((resolve, reject) => {
-        if (!('indexedDB' in window)) { reject(new Error('IndexedDB unavailable')); return; }
-        const req = indexedDB.open(LEADS_DB_NAME, 1);
-        req.onupgradeneeded = () => {
-          const db = req.result;
-          if (!db.objectStoreNames.contains(LEADS_DB_STORE)) {
-            db.createObjectStore(LEADS_DB_STORE, { keyPath: 'sessionId' });
-          }
-        };
-        req.onsuccess = () => resolve(req.result);
-        req.onerror = () => reject(req.error || new Error('IndexedDB open failed'));
+    let selectedTopicKey = null;
+    let currentIndex = 0;
+    let correctCount = 0;
+    let selectedSingle = "";
+    let selectedMulti = new Set();
+    let locked = false;
+    let answerState = null; // correct | incorrect | null
+    let shuffledOptions = [];
+    let confettiTimeout = null;
+    let submissionComplete = false;
+    let lastThumbAnimatedFor = -1;
+
+    function renderTopicButtons() {
+      topicList.innerHTML = "";
+      Object.entries(TOPICS).forEach(([key, topic]) => {
+        const btn = document.createElement("button");
+        btn.className = "topic-btn" + (key === selectedTopicKey ? " active" : "");
+        btn.type = "button";
+        btn.innerHTML = `
+          <span class="topic-icon" aria-hidden="true">${topic.icon}</span>
+          <span class="topic-text">${topic.label}</span>
+          <span class="topic-arrow" aria-hidden="true">›</span>
+        `;
+        btn.addEventListener("click", () => selectTopic(key));
+        topicList.appendChild(btn);
       });
     }
 
-    async function readLeadsIndexedDb() {
-      const db = await openLeadDb();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(LEADS_DB_STORE, 'readonly');
-        const store = tx.objectStore(LEADS_DB_STORE);
-        const req = store.getAll();
-        req.onsuccess = () => { db.close(); resolve(Array.isArray(req.result) ? req.result : []); };
-        req.onerror = () => { db.close(); reject(req.error || new Error('IndexedDB read failed')); };
-      });
+    function setLogoState() {
+      logoC.classList.toggle("visible", correctCount >= 1);
+      logoG.classList.toggle("visible", correctCount >= 2);
+      logoI.classList.toggle("visible", correctCount >= 3);
     }
 
-    async function writeLeadsIndexedDb(entries) {
-      const db = await openLeadDb();
-      return new Promise((resolve, reject) => {
-        const tx = db.transaction(LEADS_DB_STORE, 'readwrite');
-        const store = tx.objectStore(LEADS_DB_STORE);
-        store.clear();
-        entries.forEach(entry => store.put(entry));
-        tx.oncomplete = () => { db.close(); resolve(true); };
-        tx.onerror = () => { db.close(); reject(tx.error || new Error('IndexedDB write failed')); };
-        tx.onabort = () => { db.close(); reject(tx.error || new Error('IndexedDB transaction aborted')); };
-      });
-    }
-
-    function mergeLeads(primary, secondary) {
-      const map = new Map();
-      [...primary, ...secondary].forEach(entry => {
-        if (!entry || typeof entry !== 'object') return;
-        const id = entry.sessionId || `${entry.timestamp || ''}|${entry.email || ''}|${entry.firstName || ''}|${entry.lastName || ''}`;
-        map.set(id, entry);
-      });
-      return Array.from(map.values()).sort((a,b) => String(a.timestamp || '').localeCompare(String(b.timestamp || '')));
-    }
-
-    async function hydrateLeadsFromIndexedDb() {
-      try {
-        const idbLeads = await readLeadsIndexedDb();
-        const merged = mergeLeads(leads, idbLeads);
-        if (merged.length !== leads.length) {
-          leads = merged;
-          try { localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads)); } catch (_) {}
-        }
-        storageBackend = 'IndexedDB + localStorage';
-        updateLeadUi();
-        renderAdmin();
-      } catch (error) {
-        storageBackend = 'localStorage';
-        updateLeadUi();
+    function showIntroView() {
+      document.body.classList.add('intro-mode');
+      document.body.classList.remove('quiz-mode');
+      selectedTopicKey = null;
+      currentIndex = 0;
+      correctCount = 0;
+      lastThumbAnimatedFor = -1;
+      selectedSingle = "";
+      selectedMulti = new Set();
+      locked = false;
+      answerState = null;
+      submissionComplete = false;
+      currentSession = createSession();
+      if (leadForm) leadForm.reset();
+      setSubmitMessage('Bitte alle Pflichtfelder ausfüllen und Teilnahmebedingungen bestätigen.');
+      if (successCard) {
+        successCard.classList.add('hide');
+        successCard.classList.remove('show');
       }
+      if (winCard) winCard.classList.add('hide');
+      if (newsletterCard) newsletterCard.classList.add('hide');
+      if (contentCard) contentCard.classList.remove('hide');
+      renderTopicButtons();
+      updateProgress();
+      updateTopicBubble();
+      renderQuestions();
+      setLogoState();
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     }
 
-    function emptyAnalytics() {
-      const topicStats = {};
-      Object.keys(TOPICS).forEach((key) => {
-        topicStats[key] = { starts: 0, completions: 0 };
-      });
-      return {
-        startsTotal: 0,
-        completionsTotal: 0,
-        pdfViews: { ai: 0, cyber: 0, cloud: 0, integration: 0 },
-        wrongByQuestion: {},
-        topicStats
-      };
+    function returnToStart() {
+      // End the current participant session and return to the central language selection.
+      window.location.href = 'index.html';
     }
 
-    function loadLeads() {
-      try {
-        const raw = localStorage.getItem(LEADS_STORAGE_KEY);
-        const parsed = raw ? JSON.parse(raw) : [];
-        return Array.isArray(parsed) ? parsed : [];
-      } catch (error) {
-        return [];
+
+    function openNewsletterView() {
+      if (contentCard) contentCard.classList.add('hide');
+      if (winCard) winCard.classList.add('hide');
+      if (successCard) successCard.classList.add('hide');
+      if (newsletterCard) newsletterCard.classList.remove('hide');
+      if (newsletterEmail && leadEmail && leadEmail.value) newsletterEmail.value = leadEmail.value;
+      if (newsletterMessage) { newsletterMessage.textContent = ''; newsletterMessage.className = 'newsletter-message full'; }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function backToSuccessView() {
+      if (newsletterCard) newsletterCard.classList.add('hide');
+      showSuccessView();
+    }
+
+    function saveNewsletterInterest(event) {
+      event.preventDefault();
+      const email = newsletterEmail ? newsletterEmail.value.trim() : '';
+      const consent = newsletterConsent ? newsletterConsent.checked : false;
+      if (!email || !consent) {
+        if (newsletterMessage) { newsletterMessage.textContent = 'Bitte gib Deine E-Mail-Adresse ein und bestätige den Datenschutzhinweis.'; newsletterMessage.className = 'newsletter-message full error'; }
+        return;
       }
-    }
-
-    async function saveLeads() {
-      const payload = JSON.stringify(leads);
-      let localOk = false, idbOk = false;
-      try {
-        localStorage.setItem(LEADS_STORAGE_KEY, payload);
-        localOk = localStorage.getItem(LEADS_STORAGE_KEY) === payload;
-      } catch (error) {}
-      try {
-        await writeLeadsIndexedDb(leads);
-        idbOk = true;
-      } catch (error) {}
-      if (!localOk && !idbOk) throw new Error('No browser storage available');
-      storageBackend = idbOk && localOk ? 'IndexedDB + localStorage' : (idbOk ? 'IndexedDB' : 'localStorage');
-      updateLeadUi();
-      return true;
+      let entries = [];
+      try { entries = JSON.parse(localStorage.getItem(NEWSLETTER_STORAGE_KEY) || '[]'); } catch(e) { entries = []; }
+      entries.push({ timestamp:new Date().toISOString(), email, consent:'ja', source:'IBC2026 Quiz', topic:selectedTopicKey || '' });
+      localStorage.setItem(NEWSLETTER_STORAGE_KEY, JSON.stringify(entries));
+      if (newsletterMessage) { newsletterMessage.textContent = 'Vielen Dank! Deine Newsletter-Anmeldung wurde lokal gespeichert.'; newsletterMessage.className = 'newsletter-message full success'; }
+      if (newsletterForm) newsletterForm.reset();
     }
 
     function createSession() {
@@ -2374,8 +2366,18 @@ const TOPIC_RESOURCES = {
     }
 
     function saveLeads() {
-      localStorage.setItem(LEADS_STORAGE_KEY, JSON.stringify(leads));
-      updateLeadUi();
+      try {
+        const payload = JSON.stringify(leads);
+        localStorage.setItem(LEADS_STORAGE_KEY, payload);
+        const verified = localStorage.getItem(LEADS_STORAGE_KEY);
+        if (verified !== payload) throw new Error('Storage verification failed');
+        updateLeadUi();
+        return true;
+      } catch (error) {
+        console.error('Teilnehmerdaten konnten nicht gespeichert werden:', error);
+        updateLeadUi();
+        return false;
+      }
     }
 
     function loadAnalytics() {
@@ -2513,6 +2515,8 @@ const TOPIC_RESOURCES = {
       if (!statLeads || !tableBody) return;
 
       statLeads.textContent = leads.length;
+      const storageHealth = document.getElementById('storageHealth');
+      if (storageHealth) storageHealth.textContent = `Auf diesem iPad lokal gespeichert: ${leads.length} Teilnahme${leads.length === 1 ? '' : 'n'}.`
       statStarts.textContent = analytics.startsTotal || 0;
       statCompletions.textContent = analytics.completionsTotal || 0;
       statPdfAi.textContent = Object.values(analytics.pdfViews || {}).reduce((sum, value) => sum + Number(value || 0), 0);
@@ -2571,7 +2575,7 @@ const TOPIC_RESOURCES = {
       };
     }
 
-    async function saveLead(event) {
+    function saveLead(event) {
       event.preventDefault();
       const values = readLeadFormValues();
       if (!values.firstName || !values.lastName || !values.company || !values.email || !values.consent) {
@@ -2595,24 +2599,19 @@ const TOPIC_RESOURCES = {
         wrongAnswers: currentSession.wrongAnswers || 0
       };
       leads.push(entry);
-      try {
-        await saveLeads();
-        const persisted = mergeLeads(await readLeadsIndexedDb().catch(() => []), loadLeads());
-        const confirmed = persisted.some(item => item.sessionId === entry.sessionId);
-        if (!confirmed) throw new Error('Storage verification failed');
-        leads = persisted;
-        updateLeadUi();
-        setSubmitMessage('Teilnahme erfolgreich gespeichert. Vielen Dank!', 'success');
-        leadForm.reset();
-        submissionComplete = true;
-        showSuccessView();
-        renderQuestions();
-      } catch (error) {
-        leads = leads.filter(item => item.sessionId !== entry.sessionId);
-        updateLeadUi();
-        console.error('Teilnehmerdaten konnten nicht gespeichert werden:', error);
+      const saved = saveLeads();
+      if (!saved) {
+        leads.pop();
         setSubmitMessage('Speichern fehlgeschlagen. Bitte das Formular nicht schließen und das Standpersonal informieren.', 'error');
+        return;
       }
+      // Read back from persistent storage before showing the success screen.
+      leads = loadLeads();
+      setSubmitMessage(`Teilnahme erfolgreich gespeichert. Lokal gespeicherte Teilnahmen auf diesem iPad: ${leads.length}.`, 'success');
+      leadForm.reset();
+      submissionComplete = true;
+      showSuccessView();
+      renderQuestions();
     }
 
     function xmlEscape(value) {
@@ -3073,7 +3072,6 @@ function closeTopicModalFn()
     aiBubble.addEventListener('click', openTopicModal);
     if (aiPdfLink) aiPdfLink.addEventListener('click', () => recordPdfOpen(selectedTopicKey || 'ai'));
     if (leadForm) leadForm.addEventListener('submit', saveLead);
-    hydrateLeadsFromIndexedDb();
     if (leadForm) {
       leadForm.addEventListener('focusin', () => { syncAppViewport(); }, true);
       leadForm.addEventListener('focusout', () => {
@@ -3082,6 +3080,39 @@ function closeTopicModalFn()
     }
 
     if (exportExcelBtn) exportExcelBtn.addEventListener('click', exportXlsx);
+
+    // Same-context admin access for iPad PWA.
+    // Separate Home Screen PWAs can have isolated browser storage on iPadOS,
+    // therefore the admin dashboard must be opened inside the participant PWA
+    // when it needs to read/export locally stored participant data.
+    let sameContextAdminTapCount = 0;
+    let sameContextAdminTapTimer = null;
+    function unlockSameContextAdmin() {
+      const password = window.prompt('Admin-Passwort eingeben:');
+      if (password !== '122333') {
+        if (password !== null) window.alert('Passwort nicht korrekt.');
+        return;
+      }
+      document.body.classList.add('admin-view');
+      leads = loadLeads();
+      analytics = loadAnalytics();
+      updateLeadUi();
+      openAdminModal();
+    }
+    document.querySelectorAll('.logo-top img, .quiz-brand img').forEach((logo) => {
+      logo.style.userSelect = 'none';
+      logo.addEventListener('click', () => {
+        sameContextAdminTapCount += 1;
+        window.clearTimeout(sameContextAdminTapTimer);
+        sameContextAdminTapTimer = window.setTimeout(() => { sameContextAdminTapCount = 0; }, 3000);
+        if (sameContextAdminTapCount >= 5) {
+          sameContextAdminTapCount = 0;
+          window.clearTimeout(sameContextAdminTapTimer);
+          unlockSameContextAdmin();
+        }
+      });
+    });
+
     if (adminOpen) adminOpen.addEventListener('click', openAdminModal);
     if (adminClose) adminClose.addEventListener('click', closeAdminModal);
     if (adminExportXlsx) adminExportXlsx.addEventListener('click', exportXlsx);

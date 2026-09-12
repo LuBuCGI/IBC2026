@@ -1,4 +1,4 @@
-const CACHE_NAME = 'cgi-ibc2026-v1.6.2';
+const CACHE_NAME = 'cgi-ibc2026-v1.6.3';
 const ASSETS = ['./README.md', './assets/app-icon-180.png', './assets/app-icon-192.png', './assets/app-icon-512.png', './assets/cgi-c.png', './assets/cgi-g.png', './assets/cgi-i.png', './assets/ibc-logo-red.png', './assets/logo50.png', './assets/progress-badge.png', './assets/raffle-bowl.svg', './de.html', './en.html', './index.html', './manifest.webmanifest', './pdf/ai-offering.pdf', './pdf/ai-strategy-de.pdf', './pdf/ai-strategy-en.pdf', './pdf/ai-strategy-und-implementierung.pdf', './pdf/cloud-sovereignty-de.pdf', './pdf/cloud-sovereignty-en.pdf', './pdf/cloud-und-sovereignty.pdf', './pdf/cybersecurity-de.pdf', './pdf/cybersecurity-en.pdf', './pdf/cybersecurity.pdf', './pdf/system-integration-de.pdf', './pdf/system-integration-en.pdf', './pdf/system-integration.pdf', './pdf/terms-and-conditions.pdf', './pdf/terms-privacy-de.pdf',
   "./pdf-pages/ai-strategy-de/page-01.jpg",
   "./pdf-pages/ai-strategy-de/page-02.jpg",
